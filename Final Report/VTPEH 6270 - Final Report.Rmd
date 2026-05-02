@@ -1,0 +1,252 @@
+---
+title: "VTPEH6270"
+subtitle: "Final Report"
+author: "Xinran Chen"
+date: "`r Sys.Date()`"
+editor_options:
+  chunk_output_type: console
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: 2
+    number_sections: true
+header-includes:
+  - \usepackage{caption}
+  - \captionsetup[table]{justification=centering,singlelinecheck=false}
+urlcolor: blue
+bibliography: References.bib
+---
+
+```{r setup, include = FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+```
+
+# Introduction
+
+GitHub repository:https://github.com/xrc577/VTPEH6270-project 
+
+Shiny App Link:https://xc577.shinyapps.io/Final_Shiny_App/ 
+
+Data Source Link:https://catalog.data.gov/dataset/wastewater-co-digestion-and-biogas-to-grid-performance-indicators
+
+## Research Question
+Is monthly RNG production associated with digested organic waste inputs levels (low, medium, high)?
+
+## Scientific Plausibility and Context.
+Anaerobic digestion converts biodegradable organic matter in wastewater sludge and co-digested substrates into renewable natural gas through a series of microbial processes. The research shows that methane production is strongly influenced by the quantity and characteristics of the organic feedstock supplied to the digester, as higher concentrations of degradable volatile solids increase the potential for biogas generation [@appels_2008_principles]. Co-digestion of wastewater sludge with additional organic substrates, such as food waste, has been widely shown to enhance methane production by increasing organic loading and improving substrate balance [@mataalvarez_2014_a]. Evidence also indicates that increasing organic loading can lead to higher methane yields, although the extent of improvement depends on operational stability and process constraints [@li_2024_a].
+
+Therefore, examining whether renewable natural gas (RNG) production varies across different levels of digested organic waste inputs is mechanistically justified, as variations in organic loading are expected to influence energy recovery performance.
+
+# Material & Methods
+
+```{r}
+library(dplyr)
+library(janitor)
+library(ggplot2)
+```
+
+## Data
+
+The dataset was obtained from NYC Open Data and includes monthly performance indicators for wastewater treatment facilities operating co-digestion and biogas-to-grid programs.
+
+Data were imported and cleaned in R using the `janitor` and `dplyr` packages. Column names were standardized and key variables were renamed for consistency. Relevant variables include sludge digested, food scraps digested, and renewable natural gas (RNG) production.
+
+A derived variable for food scraps input level was created by categorizing food scraps digested into three groups (low, medium, high) based on tertiles. This approach ensures a balanced distribution of observations across groups, improving the comparability of RNG production between levels and reducing the influence of extreme values. Additionally, categorization simplifies interpretation and supports the use of one-way ANOVA to assess differences across groups.
+
+```{r, results='hide'}
+
+# Import original dataset
+data_wastewater <- read.csv(
+  "Wastewater Co-digestion and Biogas-to-grid Performance Indicators (New York City).csv"
+)
+
+# Clean column names (lowercase + underscore format)
+data_wastewater <- clean_names(data_wastewater)
+
+# Rename variables to clean analysis-friendly names
+data_wastewater <- data_wastewater %>%
+  rename(
+    sludge_digested = sludge_digested_wet_tons,
+    food_scraps_digested = food_scraps_digested_wet_tons,
+    rng_produced = rng_production_mm_btu,
+    rng_system_uptime = rng_system_uptime,
+    biogas_flared = flared_biogas_mscf,
+    flaring_reduction = reduction_in_flaring
+  )
+
+# View structure
+str(data_wastewater)
+
+# Save the new dataset table to file
+write.csv(
+  data_wastewater,
+  "wastewater.csv",
+  row.names = FALSE
+)
+```
+
+## Statistical Analyse
+
+To examine whether monthly RNG production differs across food scraps input levels, a boxplot was first used for visualization, followed by a one-way analysis of variance (ANOVA).
+
+The independent variable is food scraps input level (low, medium, high), which was created by categorizing food scraps digested into tertiles. The dependent variable is monthly RNG production. Although the original variable (food scraps digested) is continuous, it was categorized into tertiles to facilitate group-based comparison using ANOVA and enhance interpretability. This approach may lead to some loss of information and reduced statistical power; however, it provides a clearer framework for comparing mean RNG production across distinct input levels. Future analyses could also consider modeling the variable as a continuous predictor to preserve full information.
+
+The null hypothesis (H0) states that mean RNG production is equal across all groups, while the alternative hypothesis (H1) states that at least one group differs.
+
+Model assumptions, including normality of residuals and homogeneity of variance, were evaluated using diagnostic plots. All analyses were conducted in R.
+
+### Create Input Level Variable
+
+To compare RNG production across different levels of organic input, food scraps digested was categorized into three groups (low, medium, high) based on tertiles.
+
+```{r}
+data_wastewater <- data_wastewater %>%
+  mutate(
+    food_scraps_input_level = cut(
+      food_scraps_digested,
+      breaks = quantile(food_scraps_digested, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
+      labels = c("low","medium","high"),
+      include.lowest = TRUE
+    )
+  )
+```
+
+### One-way ANOVA
+
+A one-way ANOVA was performed to test whether mean RNG production differs across food scraps input levels.
+
+```{r, fig.show='hide'}
+anova_model <- aov(rng_produced ~ food_scraps_input_level, data = data_wastewater)
+summary(anova_model)
+
+plot(anova_model)
+```
+
+### Linear Regression
+
+To further examine the relationship between food scraps input and RNG production, a simple linear regression model was fitted using food scraps digested as a continuous predictor.
+
+```{r}
+lm_model <- lm(rng_produced ~ food_scraps_digested, data = data_wastewater)
+summary(lm_model)
+```
+
+### Diagnostic Plots
+
+Diagnostic plots were used to evaluate model assumptions, including normality of residuals and homogeneity of variance.
+
+```{r, fig.show='hide'}
+plot(anova_model)
+```
+
+Visual inspection of the Q-Q plot suggested that residuals were approximately normally distributed, with only minor deviations at the tails. The scale-location plot indicated no strong evidence of heteroscedasticity, and residuals were randomly distributed across groups. Overall, these results suggest that model assumptions were reasonably satisfied.
+
+### Visualization of RNG Production
+
+A boxplot was created to visualize the distribution of RNG production across input levels.
+
+```{r, fig.show='hide'}
+ggplot(data_wastewater, aes(x = food_scraps_input_level, y = rng_produced)) +
+  geom_boxplot() +
+  labs(
+    title = "RNG Production by Food Scraps Input Level",
+    x = "Food scraps input level",
+    y = "RNG production (MMBtu per month)"
+  ) +
+  theme_minimal()
+```
+
+### RNG Production by Food Scraps Input Level Regression Plot
+
+A regression plot was created to visualize the relationship between food scraps input and RNG production.
+
+```{r, fig.show='hide'}
+ggplot(data_wastewater, aes(x = food_scraps_digested, y = rng_produced)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Relationship Between Food Scraps Input and RNG Production",
+    x = "Food scraps digested (wet tons)",
+    y = "RNG production (MMBtu per month)"
+  ) +
+  theme_minimal()
+```
+
+# Results
+
+## Visualization
+
+### RNG Production by Food Scraps Input Level Boxplot
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=6, fig.height=3.5, fig.align='center'}
+ggplot(data_wastewater, aes(x = food_scraps_input_level, y = rng_produced)) +
+  geom_boxplot() +
+  labs(
+    title = "RNG Production by Food Scraps Input Level",
+    x = "Food scraps input level",
+    y = "RNG production (MMBtu per month)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 12),  
+    axis.title = element_text(size = 10),               
+    axis.text = element_text(size = 9)    
+  )
+
+ggsave(
+  "Fig1_Boxplot_RNG_Input.png",
+  width = 6,
+  height = 6,
+  units = "in"
+)
+```
+
+### RNG Production by Food Scraps Input Level Regression Plot
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=6, fig.height=3.5, fig.align='center'}
+ggplot(data_wastewater, aes(x = food_scraps_digested, y = rng_produced)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Relationship Between Food Scraps Input and RNG Production",
+    x = "Food scraps digested (wet tons)",
+    y = "RNG production (MMBtu per month)"
+  ) +
+  theme_minimal()+
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 12),  
+    axis.title = element_text(size = 10),               
+    axis.text = element_text(size = 9)    
+  )
+ggsave(
+  "Fig2_Regression_Plot_RNG_Input.png",
+  width = 6,
+  height = 6,
+  units = "in"
+)
+```
+
+## Statistical Analyses
+
+A boxplot (Figure 1) was used to visualize the distribution of monthly RNG production across food scraps input levels (low, medium, high), allowing comparison of central tendency and variability between groups. In addition, a regression scatter plot with a fitted linear trend (Figure 2) was used to examine the relationship between food scraps input and RNG production.
+
+To formally test whether mean RNG production differs across input levels, a one-way analysis of variance (ANOVA) was performed. The results indicated no statistically significant difference in mean RNG production across groups (F = 1.12, p = 0.343). This indicates a small effect size, suggesting that input level has limited practical influence on RNG production.
+
+To further examine this relationship, a simple linear regression model was fitted using food scraps digested as a continuous predictor. The regression analysis showed that food scraps input was not significantly associated with RNG production (B = -4.49, p = 0.069), although a weak negative trend was observed.
+
+Diagnostic checks indicated no major violations of model assumptions, including normality of residuals and homogeneity of variance. Because the ANOVA results were not statistically significant, no post-hoc comparisons were conducted. Given the limited number of statistical tests performed, correction for multiple testing was not applied.
+
+# Conclusions
+
+This analysis evaluated whether food scraps input level influences monthly RNG production. Overall, the results suggest that input level alone is not a strong determinant of RNG output. Neither the ANOVA nor the regression analysis showed a statistically significant association, although a weak negative trend was observed.
+
+Importantly, the small effect size indicates limited practical significance, suggesting that increasing food scraps input alone is unlikely to substantially impact RNG production.
+
+One possible explanation is that RNG production is influenced by multiple operational and environmental factors, such as digestion efficiency, system uptime, and feedstock composition, which may vary within input levels and obscure potential differences.
+
+These findings highlight that simply increasing food scraps input may not directly lead to higher RNG production, and emphasize the importance of considering broader system-level factors when optimizing biogas generation.
+
+# AI Use Disclosure Statement
+
+This document was generated with the assistance of AI-based tools, including ChatGPT, which were used to drafting code and identifying relevant functions. All final decisions, analyses, and revisions were independently reviewed and completed by the author.
