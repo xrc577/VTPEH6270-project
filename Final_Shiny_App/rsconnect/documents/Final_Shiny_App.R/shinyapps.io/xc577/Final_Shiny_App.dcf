@@ -1,0 +1,12 @@
+name: Final_Shiny_App
+title: Final_Shiny_App
+username: xc577
+account: xc577
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17279108
+bundleId: 11938716
+url: https://xc577.shinyapps.io/Final_Shiny_App/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
