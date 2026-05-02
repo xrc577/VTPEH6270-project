@@ -1,0 +1,12 @@
+name: cp07_shiny_app
+title: cp07_shiny_app
+username: xc577
+account: xc577
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17194808
+bundleId: 11886506
+url: https://xc577.shinyapps.io/cp07_shiny_app/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
